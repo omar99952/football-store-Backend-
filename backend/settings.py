@@ -31,8 +31,8 @@ auth_user_model = 'users.CustomUser'
 
 # Allow React to access the API
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173", # Default for Vite
+    "http://localhost:3000", 
+    "http://localhost:5173", #  for react
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True

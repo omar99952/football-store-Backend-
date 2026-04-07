@@ -1,12 +1,14 @@
-from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
-from rest_framework.response import Response
-from .models import Product
-from .serializers import ProductSerializer
 from django.contrib.auth import authenticate
+from django.contrib.auth.models import User
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from .models import Product, Cart, Order
+from .serializers import ProductSerializer, CartSerializer, OrderSerializer
 
 @api_view(['GET'])
 def product_list(request):
@@ -41,8 +43,8 @@ def login_view(request):
 
 
 
-from django.contrib.auth.models import User
-from django.db import IntegrityError # Add this
+
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -65,3 +67,55 @@ def register(request):
         
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    
+    
+@api_view(['GET'])
+def product_detail(request, pk):
+    try:
+        product = Product.objects.get(pk=pk)
+        serializer = ProductSerializer(product)
+        return Response(serializer.data)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+                       
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def cart_view(request):
+    if request.method == 'GET':
+        cart_items = Cart.objects.filter(user=request.user)
+        serializer = CartSerializer(cart_items, many=True)
+        return Response(serializer.data)
+    elif request.method == 'POST':
+        product_id = request.data.get('product_id')
+        quantity = request.data.get('quantity', 1)
+        product = Product.objects.get(pk=product_id)
+        cart_item, created = Cart.objects.get_or_create(user=request.user, product=product)
+        if not created:
+            cart_item.quantity += quantity
+            cart_item.save()
+        return Response({'message': 'Added to cart'}, status=status.HTTP_201_CREATED)
+    elif request.method == 'DELETE':
+        product_id = request.data.get('product_id')
+        Cart.objects.filter(user=request.user, product_id=product_id).delete()
+        return Response({'message': 'Removed from cart'})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def order_list(request):
+    if request.method == 'GET':
+        orders = Order.objects.filter(user=request.user)
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
+    elif request.method == 'POST':
+        cart_items = Cart.objects.filter(user=request.user)
+        if not cart_items:
+            return Response({'error': 'Cart is empty'}, status=status.HTTP_400_BAD_REQUEST)
+        for item in cart_items:
+            Order.objects.create(user=request.user, product=item.product, quantity=item.quantity)
+        cart_items.delete()
+        return Response({'message': 'Order placed'})
