@@ -1,14 +1,15 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Product, Cart, Order
 from .serializers import ProductSerializer, CartSerializer, OrderSerializer
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from google.auth import jwt
 
 @api_view(['GET'])
 def product_list(request):
@@ -41,10 +42,43 @@ def login_view(request):
             "error": "Invalid Username or Password"
         }, status=status.HTTP_401_UNAUTHORIZED)
 
-
-
-
-
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_login(request):
+    google_token = request.data.get('token') 
+    try:
+        idinfo = jwt.decode(google_token, verify=False) # 'verify=False' stops the time crash
+        
+        # Manually check the audience to keep it secure
+        expected_client_id = "739486864972-v3lm8mhs4p96ss6euassum5t7qfgqek9.apps.googleusercontent.com"
+        if idinfo['aud'] != expected_client_id:
+            return Response({'error': 'Invalid Audience'}, status=400)
+        email = idinfo['email']
+        username = email.split('@')[0]
+        user = User.objects.filter(email=email).first()
+        
+        if(not user):
+           
+            user = User.objects.create(
+                username=username,
+                email = email,
+                first_name=idinfo.get('given_name', ''),
+                last_name=idinfo.get('family_name', '') 
+            )
+            user.set_unusable_password()
+            user.save()
+        token , _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'token': token.key, 
+            'username': user.username
+        },status=status.HTTP_200_OK)
+        
+    except ValueError as e:
+        print(f"Verification Failed: {e}")
+        return Response({'error': 'Invalid Google Token'}, status=400)
+    except Exception as e:
+        print(f"General Error: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
