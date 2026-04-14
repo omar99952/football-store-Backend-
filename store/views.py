@@ -13,7 +13,11 @@ from google.auth import jwt
 
 @api_view(['GET'])
 def product_list(request):
-    products = Product.objects.all()
+    brand = request.query_params.get('brand')
+    if brand:
+        products = Product.objects.filter(brand__iexact=brand)
+    else:    
+        products = Product.objects.all()
     serializer = ProductSerializer(products, many=True)
     return Response(serializer.data)
 
