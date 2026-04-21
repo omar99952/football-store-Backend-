@@ -1,8 +1,9 @@
 # backend/store/admin.py
 from django.contrib import admin
-from .models import Product,Order,Cart
+from .models import Product,Order,Cart,OrderItem
 
 admin.site.register(Order)
+admin.site.register(OrderItem)
 admin.site.register(Cart)
 @admin.register(Product)
 

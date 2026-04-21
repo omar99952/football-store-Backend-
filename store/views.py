@@ -5,11 +5,12 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework.response import Response
-from .models import Product, Cart, Order
-from .serializers import ProductSerializer, CartSerializer, OrderSerializer
+from .models import Product, Cart, Order,OrderItem
+from .serializers import ProductSerializer, CartSerializer, OrderSerializer,OrderItemSerilizer
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from google.auth import jwt
+from django.db import transaction
 
 @api_view(['GET'])
 def product_list(request):
@@ -145,6 +146,7 @@ def cart_view(request):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def order_list(request):
+    
     if request.method == 'GET':
         orders = Order.objects.filter(user=request.user)
         serializer = OrderSerializer(orders, many=True)
@@ -157,3 +159,46 @@ def order_list(request):
             Order.objects.create(user=request.user, product=item.product, quantity=item.quantity)
         cart_items.delete()
         return Response({'message': 'Order placed'})
+    
+    
+@api_view(['POST'])
+@permission_classes([AllowAny])    
+def create_order(request):
+    user = request.user
+    orderItems = request.data.get('items')
+    totalPrice = request.data.get('total_price')
+    try:
+        with transaction.atomic():
+            order = Order.objects.create(
+                user=user,
+                total_price=totalPrice,
+                status='processing'
+            )
+            
+            for item_id, details in orderItems.items():
+                product = Product.objects.select_for_update().get(id=item_id)
+                quantity = details['quantity']
+                
+                if product.stock < quantity:
+                    raise Exception(f"low stock for {product.name}")
+                product.stock-=quantity
+                product.save()
+                
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    quantity=quantity,
+                    price=product.price
+                    
+                )
+            return Response({"message": "Order successful!", "order_id": order.id}, status=201)
+                
+    except Exception as e:
+        return Response({"error": str(e)}, status=400)        
+    
+           
+        
+        
+    
+    
+    
