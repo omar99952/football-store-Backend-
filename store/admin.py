@@ -1,10 +1,11 @@
 # backend/store/admin.py
 from django.contrib import admin
-from .models import Product,Order,Cart,OrderItem
+from .models import Product,Order,Cart,OrderItem,CartItem
 
 admin.site.register(Order)
 admin.site.register(OrderItem)
 admin.site.register(Cart)
+admin.site.register(CartItem)
 @admin.register(Product)
 
 class ProductAdmin(admin.ModelAdmin):
