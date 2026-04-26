@@ -35,8 +35,18 @@ def product_detail(request, pk):
     except Product.DoesNotExist:
         return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
-
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_orders(request):
+    try:
+        # Filter by the logged-in user
+        orders = Order.objects.filter(user=request.user).order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        # This will print the EXACT error in your terminal
+        print(f"Error: {e}") 
+        return Response({"error": str(e)}, status=500)
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def order_list(request):

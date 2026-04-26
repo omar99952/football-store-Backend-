@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework.authtoken.views import obtain_auth_token
 from .views import product_list ,product_detail,order_list,delete_cartItem
-from .views import manage_cart,google_login,create_order,register
+from .views import manage_cart,google_login,create_order,register,get_orders
 from rest_framework_simplejwt.views import ( TokenObtainPairView,TokenRefreshView,)
  
 
@@ -22,4 +22,5 @@ urlpatterns = [
     path('delete-cart/<int:product_id>/', delete_cartItem),  
     path('cart/', manage_cart),                    
     path('create_order/', create_order),
+    path('get_orders/', get_orders),
 ]
