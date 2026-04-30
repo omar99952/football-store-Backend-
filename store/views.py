@@ -47,6 +47,7 @@ def get_orders(request):
         # This will print the EXACT error in your terminal
         print(f"Error: {e}") 
         return Response({"error": str(e)}, status=500)
+    
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def order_list(request):
@@ -105,7 +106,6 @@ def create_order(request):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def manage_cart(request):
-    # 1. Get or create the 'Header' record for this user
     cart, created = Cart.objects.get_or_create(user=request.user)
 
     if request.method == 'GET':
@@ -113,33 +113,46 @@ def manage_cart(request):
         return Response(serializer.data)
 
     if request.method == 'POST':
-        # Logic to add/update items
-        product_id = request.data.get('product_id')
-        quantity = int(request.data.get('quantity', 1))
-        
-        product = Product.objects.get(id=product_id)
-        
-        # 2. Create or update the 'Line Item'
-        item, item_created = CartItem.objects.get_or_create(
-            cart=cart, 
-            product=product,
-            defaults={'price': product.price}
-        )
-        
-        if not item_created:
-            item.quantity += quantity
-        else:
-            item.quantity = quantity
-            
-        item.save()
+        # Check if we are receiving a bulk merge from localStorage
+        guest_items = request.data.get('items') # Expecting a list: [{"id": 1, "quantity": 2}, ...]
 
-        # 3. Update the Cart Header total_price
-        # (You can also use a Django signal or property for this)
+        if guest_items:
+            # --- BULK MERGE LOGIC ---
+            for entry in guest_items:
+                product = Product.objects.get(id=entry['id'])
+                item, item_created = CartItem.objects.get_or_create(
+                    cart=cart, 
+                    product=product,
+                    defaults={'price': product.price, 'quantity': entry['quantity']}
+                )
+                if not item_created:
+                    item.quantity += entry['quantity']
+                    item.save()
+            
+            message = "Guest cart merged successfully"
+        
+        else:
+            # --- SINGLE ITEM LOGIC (Existing) ---
+            product_id = request.data.get('product_id')
+            quantity = int(request.data.get('quantity', 1))
+            product = Product.objects.get(id=product_id)
+            
+            item, item_created = CartItem.objects.get_or_create(
+                cart=cart, 
+                product=product,
+                defaults={'price': product.price, 'quantity': quantity}
+            )
+            if not item_created:
+                item.quantity += quantity
+                item.save()
+            
+            message = "Cart updated successfully"
+
+        # Update Header Total
         cart.total_price = sum(i.quantity * i.price for i in cart.items.all())
         cart.save()
 
-        return Response({"message": "Cart updated successfully"}, status=200) 
-    
+        return Response({"message": message}, status=200)
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_cartItem(request, product_id):
